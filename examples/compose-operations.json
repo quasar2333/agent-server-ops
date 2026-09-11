@@ -1,0 +1,27 @@
+{
+  "web-status": {
+    "description": "Inspect the web application's Compose services",
+    "kind": "query",
+    "cwd": "/srv/web",
+    "timeout": 30,
+    "resources": ["web"],
+    "retrySafe": true,
+    "stages": [
+      {"name": "status", "command": ["docker", "compose", "ps", "--format", "json"]}
+    ]
+  },
+  "deploy-web": {
+    "description": "Pull the configured images, activate services, and verify application health",
+    "kind": "deploy",
+    "cwd": "/srv/web",
+    "timeout": 1800,
+    "resources": ["web"],
+    "retrySafe": false,
+    "stages": [
+      {"name": "validate", "command": ["docker", "compose", "config", "--quiet"]},
+      {"name": "pull", "command": ["docker", "compose", "pull"]},
+      {"name": "activate", "command": ["docker", "compose", "up", "-d", "--wait", "--wait-timeout", "120"]},
+      {"name": "verify", "command": ["curl", "--fail", "--silent", "--show-error", "--max-time", "15", "http://127.0.0.1:8080/healthz"]}
+    ]
+  }
+}
