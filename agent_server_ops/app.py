@@ -110,7 +110,7 @@ def create_app(cfg: dict) -> FastAPI:
                     "platform": platform.platform(), "bootTime": psutil.boot_time(),
                     "time": time.time(), "cpuPercent": psutil.cpu_percent(interval=0.1),
                     "memory": dict(psutil.virtual_memory()._asdict()),
-                    "disk": dict(psutil.disk_usage(workspace)._asdict()),
+                    "disk": dict(psutil.disk_usage(str(workspace))._asdict()),
                     "workspace": str(workspace), "allowShell": cfg["allow_shell"],
                     "queues": app.state.jobs.limits}
         return await asyncio.to_thread(inspect)
