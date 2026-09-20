@@ -23,7 +23,7 @@ Agent + server-ops skill
 
 | 能力 | 行为 |
 | --- | --- |
-| 多服务器 | 按名称保存 URL、token 文件或环境变量引用，可指定自签证书 CA |
+| 多服务器 | 按学校、项目、节点或兼容别名选择；目标不唯一时拒绝操作，回执绑定目标配置身份 |
 | 远程执行 | Linux/macOS 用 `sh`，Windows 用 PowerShell；支持工作目录、超时、取消 |
 | 持久任务 | 接收后存 SQLite，客户端断线继续执行；状态、阶段、退出码均可查询 |
 | 请求去重 | 客户端先写回执，再发请求；同一请求键返回同一个任务 |
@@ -118,6 +118,28 @@ server-ops --server production operation run python-check --stream
 ```
 
 也支持 `--token-env SERVER_OPS_TOKEN`，由 Agent 运行环境提供变量值。全局 `--server`、`--config` 放在子命令之前。配置文件只记录凭据来源，不保存 token 内容。
+
+### 按学校和项目管理多台服务器
+
+每台机器分别安装独立网关，使用各自的凭据、状态目录和启动服务。客户端统一登记，默认名称为 `学校/项目/节点`；节点可用“生产”“影子验证”“存储”等角色，并在同一学校和项目内保持唯一。示例：
+
+```bash
+server-ops server add --school 东城区培新小学 --project 电子书包-整书阅读 --node 影子验证 --url https://shadow-ops.example.com --token-file ~/.config/server-ops/shadow.token
+server-ops --school 东城区培新小学 --project 电子书包-整书阅读 --node 影子验证 status
+server-ops --server 东城区培新小学/电子书包-整书阅读/影子验证 operation run python-check
+```
+
+已核对身份的旧配置可以补标签，原别名、URL、凭据引用和未知配置字段保持不变：
+
+```bash
+server-ops server label production --school 东城区培新小学 --project 电子书包-整书阅读 --node 生产
+```
+
+`server add/label` 后面的标签用于登记；命令前的全局标签用于筛选。标签筛选必须只命中一台，不能与 `--server` 混用。**多服务器配置不再隐式使用 default**，旧脚本应明确添加 `--server default`；仅剩一台且别名为 default 时保留原行为。没有批量执行或自动分流，避免一次操作落到多台机器。
+
+每次操作的 JSON 结果和新提交回执都附带 `target`（别名、学校、项目、节点、URL、`profileId`），不输出凭据引用或 token。配置标签可修改，`profileId` 保持稳定；回执核对 URL 和配置身份，跨配置恢复会被拒绝。旧回执按 URL 和原别名检查。配置写入使用互斥锁和原子替换，遇到残留 `.lock` 时需先核对是否仍有编辑进程。
+
+标签及 `profileId` 是客户端防误选机制，不是服务器的加密身份证明。首次登记仍须核对主机名、独立凭据和 TLS 证书；同一 URL 被重新指向另一台机器时，不能仅凭旧标签认定是原主机。此客户端兼容 Agent Server Ops 网关；其他项目的专用网关需通过其原生客户端操作，不能仅登记 URL 就假定协议兼容。
 
 随后可以直接对 Agent 说：
 

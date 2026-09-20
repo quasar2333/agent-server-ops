@@ -1,4 +1,5 @@
 import argparse
+from contextlib import contextmanager
 import hashlib
 import json
 import os
@@ -73,8 +74,8 @@ def test_client_does_not_follow_redirect_or_forward_token():
         server.server_close()
 
 
-@pytest.fixture
-def live_gateway(setup, tmp_path):
+@contextmanager
+def live_gateway_process(setup, tmp_path):
     cfg, headers, root = setup
     with socket.socket() as sock:
         sock.bind(("127.0.0.1", 0))
@@ -111,6 +112,12 @@ def live_gateway(setup, tmp_path):
             process.terminate()
         process.wait(timeout=15)
         log.close()
+
+
+@pytest.fixture
+def live_gateway(setup, tmp_path):
+    with live_gateway_process(setup, tmp_path) as gateway:
+        yield gateway
 
 
 def test_real_cli_server_roundtrip(live_gateway, tmp_path):

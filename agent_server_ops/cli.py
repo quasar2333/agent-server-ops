@@ -18,6 +18,7 @@ import uuid
 from pathlib import Path
 
 from .config import private_write
+from . import profiles
 
 TERMINAL = {"succeeded", "failed", "cancelled", "interrupted", "timed_out"}
 CONFIG_HOME = Path(os.environ.get("LOCALAPPDATA") or Path.home() / ".config") / "server-ops"
@@ -87,6 +88,8 @@ def submit(client, route, payload, args, *, key=None):
     receipt = receipt.resolve()
     value = {"url": client.base, "route": route, "payload": payload, "requestKey": key,
              "server": args.server, "created": time.time()}
+    if getattr(args, "resolved_target", None):
+        value["target"] = args.resolved_target
     # Never destroy a previous receipt. An uncertain request reuses this exact file.
     save_json(receipt, value)
     print(json.dumps({"receipt": str(receipt), "requestKey": key}), file=sys.stderr)
@@ -140,20 +143,29 @@ def transfer_download(client, remote, local, overwrite):
 def parser():
     p = argparse.ArgumentParser(description="Operate servers through the Agent Server Ops gateway (JSON output)")
     p.add_argument("--config", type=Path, default=CONFIG_HOME / "client.json")
-    p.add_argument("--server", default="default")
+    p.add_argument("--server")
+    p.add_argument("--school", dest="select_school")
+    p.add_argument("--project", dest="select_project")
+    p.add_argument("--node", dest="select_node")
     subs = p.add_subparsers(dest="action", required=True)
     skill = subs.add_parser("install-skill")
     skill.add_argument("--target", type=Path, default=Path(os.environ.get("CODEX_HOME", str(Path.home() / ".codex"))) / "skills" / "server-ops")
     server = subs.add_parser("server").add_subparsers(dest="server_action", required=True)
     server.add_parser("list")
     add = server.add_parser("add")
-    add.add_argument("name")
+    add.add_argument("name", nargs="?", help="stable legacy alias; omit to name by school/project/node")
     add.add_argument("--url", required=True)
     auth = add.add_mutually_exclusive_group(required=True)
     auth.add_argument("--token-file", type=Path)
     auth.add_argument("--token-env")
     add.add_argument("--ca-file", type=Path)
     add.add_argument("--allow-http", action="store_true")
+    label = server.add_parser("label", help="label an existing profile, preserving its alias and credentials")
+    label.add_argument("name")
+    for sub in (add, label):
+        sub.add_argument("--school", required=sub is label)
+        sub.add_argument("--project", required=sub is label)
+        sub.add_argument("--node", required=sub is label)
     for name in ("health", "status"):
         subs.add_parser(name)
     run = subs.add_parser("run")
@@ -205,6 +217,13 @@ def parser():
 
 
 def execute(args):
+    result = _execute(args)
+    if getattr(args, "resolved_target", None):
+        result = {**result, "target": args.resolved_target}
+    return result
+
+
+def _execute(args):
     if args.action == "install-skill":
         target = args.target.expanduser().resolve()
         shutil.copytree(Path(__file__).parent / "skills" / "server-ops", target)
@@ -212,9 +231,20 @@ def execute(args):
     config = read_json(args.config) if args.config.exists() else {"servers": {}}
     if args.action == "server":
         if args.server_action == "list":
-            return {"servers": [{"name": k, "url": v["url"]} for k, v in config["servers"].items()]}
-        if args.name in config["servers"]:
-            raise ValueError("Server profile already exists; edit the local config to update it")
+            return {"servers": [profiles.target(k, v) for k, v in config["servers"].items()]}
+        metadata = profiles.labels(args.school, args.project, args.node)
+        name = args.name or profiles.display_name(metadata)
+        if not name or not name.strip() or any(ord(c) < 32 for c in name):
+            raise ValueError("Supply a profile name or complete school/project/node labels")
+        if args.server_action == "label":
+            with profiles.edit(args.config) as config:
+                if name not in config["servers"]:
+                    raise ValueError("Unknown server profile; run server list")
+                profiles.check_unique(config["servers"], metadata, excluding=name)
+                profile = config["servers"][name]
+                profile.update(metadata)
+                profile.setdefault("profileId", profiles.new_id())
+            return {"ok": True, **profiles.target(name, profile)}
         profile = {"url": validate_base(args.url, args.allow_http), "allowHttp": args.allow_http}
         if args.token_file:
             token_path = args.token_file.expanduser().resolve()
@@ -225,12 +255,18 @@ def execute(args):
             profile["tokenEnv"] = args.token_env
         if args.ca_file:
             profile["caFile"] = str(args.ca_file.expanduser().resolve())
-        config["servers"][args.name] = profile
-        save_json(args.config, config, exclusive=not args.config.exists())
-        return {"ok": True, "name": args.name, "url": profile["url"]}
-    if args.server not in config["servers"]:
-        raise ValueError("Unknown server profile; run server add or select --server NAME")
-    client = Client(config["servers"][args.server])
+        profile.update(metadata)
+        profile["profileId"] = profiles.new_id()
+        with profiles.edit(args.config) as config:
+            if name in config["servers"]:
+                raise ValueError("Server profile already exists; label it without replacing its credentials")
+            profiles.check_unique(config["servers"], metadata)
+            config["servers"][name] = profile
+        return {"ok": True, **profiles.target(name, profile)}
+    args.server, profile = profiles.select(config["servers"], name=args.server,
+        school=args.select_school, project=args.select_project, node=args.select_node)
+    args.resolved_target = profiles.target(args.server, profile)
+    client = Client(profile)
     if args.action == "health":
         return client.request("GET", "/ops/healthz")
     if args.action == "status":
@@ -254,6 +290,11 @@ def execute(args):
             old = read_json(args.receipt_file)
             if old["url"] != client.base:
                 raise ValueError("Receipt belongs to a different server URL")
+            old_id = old.get("target", {}).get("profileId")
+            if old_id and old_id != profile.get("profileId"):
+                raise ValueError("Receipt belongs to a different server profile identity")
+            if not old_id and old.get("server") not in (None, args.server):
+                raise ValueError("Legacy receipt belongs to a different server alias")
             if not re_valid_receipt_route(old["route"]):
                 raise ValueError("Invalid receipt route")
             return client.request("POST", old["route"], old["payload"], key=old["requestKey"])
