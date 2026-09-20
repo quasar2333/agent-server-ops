@@ -23,14 +23,14 @@ def test_registration_preserves_legacy_alias_and_never_prints_credentials(tmp_pa
         "url": "https://old.example.com", "tokenFile": str(token), "caFile": "private-ca.pem",
         "futureSetting": 7,
     }}}))
-    before = json.loads(config.read_text())["servers"]["production"]
+    before = json.loads(config.read_text(encoding="utf-8"))["servers"]["production"]
     labeled = invoke(config, "server", "label", "production", "--school", "东城区培新小学",
                      "--project", "电子书包-整书阅读", "--node", "生产")
     assert labeled["name"] == "production" and labeled["displayName"].endswith("/生产")
     identity = labeled["profileId"]
     invoke(config, "server", "label", "production", "--school", "东城区培新小学",
            "--project", "电子书包-整书阅读", "--node", "生产")
-    after = json.loads(config.read_text())
+    after = json.loads(config.read_text(encoding="utf-8"))
     assert after["custom"] == "preserve"
     assert all(after["servers"]["production"][k] == v for k, v in before.items())
     assert after["servers"]["production"]["profileId"] == identity
@@ -39,8 +39,8 @@ def test_registration_preserves_legacy_alias_and_never_prints_credentials(tmp_pa
     listing = invoke(config, "server", "list")
     output = json.dumps(listing)
     assert len(listing["servers"]) == 2
-    assert "tokenFile" not in output and str(token) not in output and token.read_text() not in output
-    assert set(json.loads(config.read_text())["servers"]) == {"production", added["name"]}
+    assert "tokenFile" not in output and str(token) not in output and token.read_text(encoding="utf-8") not in output
+    assert set(json.loads(config.read_text(encoding="utf-8"))["servers"]) == {"production", added["name"]}
     if os.name != "nt": assert config.stat().st_mode & 0o777 == 0o600
 
 
@@ -74,7 +74,7 @@ def test_labeled_routing_and_receipt_cannot_cross_profile_even_at_same_url(tmp_p
     value = invoke(config, "--school", "东城区培新小学", "--project", "电子书包-整书阅读",
                    "--node", "生产", "run", "--command", "echo ready", "--detach", "--receipt", str(receipt))
     assert value["target"]["profileId"] == a["profileId"] == sent[0][0]
-    saved = json.loads(receipt.read_text())
+    saved = json.loads(receipt.read_text(encoding="utf-8"))
     assert saved["server"] == a["name"] and saved["target"] == value["target"]
     with pytest.raises(ValueError, match="different server profile identity"):
         invoke(config, "--server", b["name"], "job", "reconcile", str(receipt))
@@ -111,7 +111,7 @@ def test_concurrent_edit_fails_closed_and_single_legacy_default_still_works(tmp_
         data["servers"]["default"] = {"url": "https://ops.example.com"}
         with pytest.raises(ValueError, match="locked"):
             with profiles.edit(config): pass
-    assert profiles.select(json.loads(config.read_text())["servers"])[0] == "default"
+    assert profiles.select(json.loads(config.read_text(encoding="utf-8"))["servers"])[0] == "default"
 
 
 def test_exact_profile_routes_to_selected_real_gateway(live_gateway, tmp_path):
