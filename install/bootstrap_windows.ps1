@@ -52,7 +52,7 @@ Start-ScheduledTask -TaskName AgentServerOps
 $ready = $false
 for ($n=0; $n -lt 20; $n++) {
     try {
-        & $python -c 'import sys,ssl,urllib.request,json; c=ssl.create_default_context(cafile=sys.argv[1]); o=urllib.request.build_opener(urllib.request.ProxyHandler({}),urllib.request.HTTPSHandler(context=c)); assert json.load(o.open("https://localhost:9876/ops/healthz",timeout=2))["ok"]' "$Root\tls\cert.pem" 2>$null
+        & $python -c "import sys,ssl,urllib.request,json; c=ssl.create_default_context(cafile=sys.argv[1]); o=urllib.request.build_opener(urllib.request.ProxyHandler({}),urllib.request.HTTPSHandler(context=c)); assert json.load(o.open('https://localhost:9876/ops/healthz',timeout=2))['ok']" "$Root\tls\cert.pem" 2>$null
         $probeCode = $LASTEXITCODE
     } catch { $probeCode = 1 }
     if ($probeCode -eq 0) { $ready=$true; break }
