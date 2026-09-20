@@ -100,6 +100,8 @@ Windows 对应 `.venv\Scripts\python.exe` 和 `.venv\Scripts\server-ops-gateway.
 
 接收方私钥只保留在运维机器的私有文件，不能进入服务器命令、日志或 Git。通过已核实的管理员通道记录回执中的证书 SHA256 指纹，解密 token 后只写入本机私有凭据文件。先核对实际 HTTPS 证书指纹，再把该证书作为该配置的 `--ca-file`；不要为方便接入关闭证书校验。证书的续期、服务参数切换和公网映射仍需单独操作和验收；该脚本不提供自动续期或服务安装。
 
+全新 Windows 主机也可使用 `install/bootstrap_windows.ps1`，须由管理员显式提供 `-SourceCommit`、该提交源码 ZIP 的 `-SourceSha256`、`-Recipient` 公钥和 `-DnsName`。脚本验证 Python 3.13.15 官方安装包的 SHA256 和 Authenticode 签名，安装独立运行环境、网关、SYSTEM 启动任务及 TLS，在本机 HTTPS 验收通过后开放 TCP 9876；公网 NAT 映射仍由管理员另外配置。目录默认在 E 盘，可用 `-Root`、`-PythonRoot`、`-Staging` 改到有足够空间的独立目录。它拒绝覆盖已有网关、任务、源码解压目录或 TLS 身份；失败后保留现场，需核对已完成阶段后从独立管理员会话继续，不能反复整套重装。尚未承诺幂等安装或自动回滚。恢复时可停止新任务并关闭本次新增防火墙/NAT 规则，保留凭据、配置、状态和工作目录供核查。
+
 ## 2. 安装 Agent 客户端和 skill
 
 在运行 Agent 的机器上，使用其可调用的 Python 环境：
