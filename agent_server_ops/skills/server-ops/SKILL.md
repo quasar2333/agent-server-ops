@@ -18,6 +18,10 @@ server-ops --server production operation list
 server-ops --server production job list
 ```
 
+For labeled profiles, use `--school SCHOOL --project PROJECT --node NODE` before the command, or the exact `--server` alias. Label filters must match exactly one server; never combine them with `--server`. Multiple configured servers always require explicit selection, even when one is named `default`. An existing alias can be labeled with `server label ALIAS --school SCHOOL --project PROJECT --node NODE` after verifying its hostname and intended role. This preserves its URL, credentials and identity; do not infer a host's school or project from an old alias alone. New registrations may omit the alias and use the generated `SCHOOL/PROJECT/NODE` name.
+
+Check the returned `target` on operations and receipts. It records local profile identity, not cryptographic server identity; verify independent credentials and TLS at first enrollment. Receipts cannot be reconciled against a different URL or profile identity. Other products' gateways may use different authentication and file protocols; retain their native clients unless an adapter has been verified.
+
 The private client config defaults to `~/.config/server-ops/client.json` (Windows: `%LOCALAPPDATA%/server-ops/client.json`). Use `--config PATH` for another file. Tokens come from a private file or named environment variable, never a command-line token. A missing profile requires the intended gateway URL and a configured credential source; do not search unrelated files for credentials or invent a target. Remote HTTP requires a saved `allowHttp` choice for a trusted network; HTTPS checks certificates and supports a custom CA. Do not silently disable those checks.
 
 `health` proves gateway availability. `status` reports host metrics. Neither proves application readiness. Run the application's configured verification operation when that is the requested outcome. A refused connection is evidence about that endpoint, not proof the server is powered off.

@@ -1,5 +1,6 @@
 include LICENSE README.md
 recursive-include install *.py
+recursive-include install *.ps1
 recursive-include examples *.json
 recursive-include agent_server_ops/skills *.md
 recursive-include tests *.py
