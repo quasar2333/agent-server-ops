@@ -96,6 +96,10 @@ Windows 对应 `.venv\Scripts\python.exe` 和 `.venv\Scripts\server-ops-gateway.
 
 网关不绑定业务域名，不接管业务端口。公开网络应使用 HTTPS，访问范围由防火墙/VPN 决定。token 代表该网关账户的操作权限，请按管理凭据保存；初始化只打印凭据文件路径。
 
+没有现有 HTTPS 证书时，可在安装目录虚拟环境安装可选依赖 `pip install '.[tls-setup]'`，从独立管理员会话运行 `install/prepare_tls.py --root <安装目录> --hostname <域名> --recipient <接收方X25519公钥的64位十六进制>`。它生成一年有效的独立自签证书和权限受限的私钥，输出用接收方公钥加密的 token 回执；不会修改服务、开放端口、覆盖已有 TLS 目录或更换 token。Windows 安装根目录须先由安装器设置管理员/SYSTEM ACL。
+
+接收方私钥只保留在运维机器的私有文件，不能进入服务器命令、日志或 Git。通过已核实的管理员通道记录回执中的证书 SHA256 指纹，解密 token 后只写入本机私有凭据文件。先核对实际 HTTPS 证书指纹，再把该证书作为该配置的 `--ca-file`；不要为方便接入关闭证书校验。证书的续期、服务参数切换和公网映射仍需单独操作和验收；该脚本不提供自动续期或服务安装。
+
 ## 2. 安装 Agent 客户端和 skill
 
 在运行 Agent 的机器上，使用其可调用的 Python 环境：
